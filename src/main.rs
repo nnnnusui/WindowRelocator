@@ -19,22 +19,21 @@ fn main() {
             println!("focus window: {}", get_window_title(&window));
             prev_selected = window;
 
-            let mut window_info = unsafe { mem::zeroed::<WINDOWINFO>() };
-            // window_info.cbSize = mem::size_of::<WINDOWINFO>();
-            let userdata = &mut window_info as *mut _;
-            let result = unsafe { GetWindowInfo(window, userdata) };
-            if result == TRUE {
-                println!(
-                    "window start: ({}, {})",
-                    window_info.rcWindow.left, window_info.rcWindow.top
-                );
-                println!(
-                    "window end: ({}, {})",
-                    window_info.rcWindow.right, window_info.rcWindow.bottom
-                );
-            }
+            let (start, end) = get_window_position(&window);
+            println!("window start: ({}, {})", start.0, start.1);
+            println!("window end: ({}, {})", end.0, end.1);
         }
     }
+}
+fn get_window_position(hwnd: &HWND) -> ((i32, i32), (i32, i32)) {
+    let mut window_info = unsafe { mem::zeroed::<WINDOWINFO>() };
+    // window_info.cbSize = mem::size_of::<WINDOWINFO>();
+    let data = &mut window_info as *mut _;
+    let result = unsafe { GetWindowInfo(*hwnd, data) };
+    (
+        (window_info.rcWindow.left, window_info.rcWindow.top),
+        (window_info.rcWindow.right, window_info.rcWindow.bottom),
+    )
 }
 
 fn get_window_title(hwnd: &HWND) -> String {
