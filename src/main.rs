@@ -3,12 +3,19 @@ use std::thread::sleep;
 use std::time::Duration;
 use std::{mem, thread};
 
+use std::fs::File;
+use std::path::Path;
 use winapi::{
     shared::windef::HWND,
     um::winuser::{GetForegroundWindow, GetWindowInfo, GetWindowTextW, WINDOWINFO},
 };
 
 fn main() {
+    let csv_path = Path::new("save.csv");
+    if !csv_path.exists() {
+        File::create(&csv_path);
+    }
+
     let mut prev_selected: HWND = unsafe { GetForegroundWindow() };
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || loop {
@@ -38,11 +45,33 @@ fn main() {
                 let (start, end) = get_window_position(&window);
                 println!("window start: ({}, {})", start.0, start.1);
                 println!("window end: ({}, {})", end.0, end.1);
+
+                let messages: Vec<&str> = message.split_whitespace().collect();
+                let command = messages[0];
+                match command {
+                    "save" => {
+                        let argument = messages[1];
+                        let mut writer = csv::Writer::from_path(&csv_path).unwrap();
+                        writer.write_record(&[
+                            &argument,
+                            start.0.to_string().as_str(),
+                            start.1.to_string().as_str(),
+                            end.0.to_string().as_str(),
+                            end.1.to_string().as_str(),
+                        ]);
+                        writer.flush();
+                    }
+                    "load" => {
+                        let argument = messages[1];
+                    }
+                    _ => {}
+                }
             }
             _ => {}
         }
     }
 }
+
 fn get_window_position(hwnd: &HWND) -> ((i32, i32), (i32, i32)) {
     let mut window_info = unsafe { mem::zeroed::<WINDOWINFO>() };
     // window_info.cbSize = mem::size_of::<WINDOWINFO>();
