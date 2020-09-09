@@ -6,19 +6,23 @@ use std::{mem, thread};
 use std::fs::File;
 use std::path::Path;
 use winapi::{
-    shared::windef::HWND,
-    um::winuser::{GetForegroundWindow, GetWindowInfo, GetWindowTextW, WINDOWINFO},
+    shared::{minwindef::TRUE, windef::HWND},
+    um::winuser::{GetForegroundWindow, GetWindowInfo, GetWindowTextW, MoveWindow, WINDOWINFO},
 };
 
 fn main() {
     let csv_path = Path::new("save.csv");
     if !csv_path.exists() {
         File::create(&csv_path);
+        let mut writer = csv::Writer::from_path(&csv_path).unwrap();
+        writer.write_record(&["Name", "Start_x", "Start_y", "End_x", "End_y"]);
+        writer.flush();
     }
 
     let default_window: HWND = unsafe { GetForegroundWindow() };
     let mut prev_selected: HWND = default_window.clone();
 
+    let mut map = std::collections::HashMap::new();
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || loop {
         let mut input = String::new();
@@ -54,18 +58,16 @@ fn main() {
                 match command {
                     "save" => {
                         let argument = messages[1];
-                        let mut writer = csv::Writer::from_path(&csv_path).unwrap();
-                        writer.write_record(&[
-                            &argument,
-                            start.0.to_string().as_str(),
-                            start.1.to_string().as_str(),
-                            end.0.to_string().as_str(),
-                            end.1.to_string().as_str(),
-                        ]);
-                        writer.flush();
+                        map.insert(argument.to_string(), (start, end));
                     }
                     "load" => {
                         let argument = messages[1];
+                        if map.contains_key(argument) {
+                            let ((x, y), end) = map.get(argument).unwrap();
+                            let width = end.0 - x;
+                            let height = end.1 - y;
+                            move_window(&prev_selected, x, y, &width, &height);
+                        }
                     }
                     _ => {}
                 }
@@ -84,6 +86,10 @@ fn get_window_position(hwnd: &HWND) -> ((i32, i32), (i32, i32)) {
         (window_info.rcWindow.left, window_info.rcWindow.top),
         (window_info.rcWindow.right, window_info.rcWindow.bottom),
     )
+}
+
+fn move_window(hwnd: &HWND, x: &i32, y: &i32, width: &i32, height: &i32) -> bool {
+    unsafe { MoveWindow(*hwnd, *x, *y, *width, *height, TRUE) == TRUE }
 }
 
 fn get_window_title(hwnd: &HWND) -> String {
