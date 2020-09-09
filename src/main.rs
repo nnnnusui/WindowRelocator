@@ -1,16 +1,27 @@
-use std::mem;
+use std::sync::mpsc;
 use std::thread::sleep;
 use std::time::Duration;
+use std::{mem, thread};
+
 use winapi::{
-    shared::{
-        minwindef::{BOOL, LPARAM, TRUE},
-        windef::HWND,
-    },
+    shared::windef::HWND,
     um::winuser::{GetForegroundWindow, GetWindowInfo, GetWindowTextW, WINDOWINFO},
 };
 
 fn main() {
     let mut prev_selected: HWND = unsafe { GetForegroundWindow() };
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || loop {
+        let mut input = String::new();
+        std::io::stdin()
+            .read_line(&mut input)
+            .expect("Failed to read line");
+        let input = input.trim();
+        println!("send input: {}", input);
+        sender
+            .send(input.to_string())
+            .expect("Send Message Failure");
+    });
     loop {
         sleep(Duration::from_millis(100));
 
@@ -18,10 +29,17 @@ fn main() {
         if prev_selected != window {
             println!("focus window: {}", get_window_title(&window));
             prev_selected = window;
+        }
+        match receiver.try_recv() {
+            Ok(message) => {
+                println!("receive message: {}", message);
 
-            let (start, end) = get_window_position(&window);
-            println!("window start: ({}, {})", start.0, start.1);
-            println!("window end: ({}, {})", end.0, end.1);
+                println!("focus window: {}", get_window_title(&window));
+                let (start, end) = get_window_position(&window);
+                println!("window start: ({}, {})", start.0, start.1);
+                println!("window end: ({}, {})", end.0, end.1);
+            }
+            _ => {}
         }
     }
 }
@@ -29,7 +47,7 @@ fn get_window_position(hwnd: &HWND) -> ((i32, i32), (i32, i32)) {
     let mut window_info = unsafe { mem::zeroed::<WINDOWINFO>() };
     // window_info.cbSize = mem::size_of::<WINDOWINFO>();
     let data = &mut window_info as *mut _;
-    let result = unsafe { GetWindowInfo(*hwnd, data) };
+    unsafe { GetWindowInfo(*hwnd, data) };
     (
         (window_info.rcWindow.left, window_info.rcWindow.top),
         (window_info.rcWindow.right, window_info.rcWindow.bottom),
