@@ -1,4 +1,3 @@
-use std::ffi::OsString;
 use std::mem;
 use std::thread::sleep;
 use std::time::Duration;
@@ -39,6 +38,7 @@ fn main() {
 }
 
 fn get_window_title(hwnd: &HWND) -> String {
+    use std::ffi::OsString;
     use std::os::windows::ffi::OsStringExt;
     let mut buf = [0u16; 1024];
     let success = unsafe { GetWindowTextW(*hwnd, &mut buf[0], 1024) > 0 };
