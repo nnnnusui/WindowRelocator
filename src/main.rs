@@ -16,7 +16,9 @@ fn main() {
         File::create(&csv_path);
     }
 
-    let mut prev_selected: HWND = unsafe { GetForegroundWindow() };
+    let default_window: HWND = unsafe { GetForegroundWindow() };
+    let mut prev_selected: HWND = default_window.clone();
+
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || loop {
         let mut input = String::new();
@@ -29,11 +31,12 @@ fn main() {
             .send(input.to_string())
             .expect("Send Message Failure");
     });
+
     loop {
         sleep(Duration::from_millis(100));
 
         let window = unsafe { GetForegroundWindow() };
-        if prev_selected != window {
+        if prev_selected != window && window != default_window {
             println!("focus window: {}", get_window_title(&window));
             prev_selected = window;
         }
@@ -41,8 +44,8 @@ fn main() {
             Ok(message) => {
                 println!("receive message: {}", message);
 
-                println!("focus window: {}", get_window_title(&window));
-                let (start, end) = get_window_position(&window);
+                println!("focus window: {}", get_window_title(&prev_selected));
+                let (start, end) = get_window_position(&prev_selected);
                 println!("window start: ({}, {})", start.0, start.1);
                 println!("window end: ({}, {})", end.0, end.1);
 
