@@ -9,6 +9,7 @@ use winapi::{
     shared::{minwindef::TRUE, windef::HWND},
     um::winuser::{GetForegroundWindow, GetWindowInfo, GetWindowTextW, MoveWindow, WINDOWINFO},
 };
+use std::collections::HashMap;
 
 fn main() {
     let csv_path = Path::new("save.csv");
@@ -56,25 +57,25 @@ fn main() {
                 let messages: Vec<&str> = message.split_whitespace().collect();
                 let command = messages[0];
                 match command {
-                    "save" => {
-                        let argument = messages[1];
-                        map.insert(argument.to_string(), (start, end));
-                    }
-                    "load" => {
-                        let argument = messages[1];
-                        if map.contains_key(argument) {
-                            let ((x, y), end) = map.get(argument).unwrap();
-                            let width = end.0 - x;
-                            let height = end.1 - y;
-                            move_window(&prev_selected, x, y, &width, &height);
-                        }
-                    }
+                    "save" => save(&mut map, &messages[1], (start, end)),
+                    "load" => load(&prev_selected, &map, &messages[1]),
                     _ => {}
                 }
             }
             _ => {}
         }
     }
+}
+
+fn save(map: &mut HashMap<String, ((i32, i32), (i32, i32))>, argument: &str, position: ((i32, i32), (i32, i32))) {
+    map.insert(argument.to_string(), position);
+}
+fn load(hwnd: &HWND, map: &HashMap<String, ((i32, i32), (i32, i32))>, argument: &str) {
+    if !map.contains_key(argument) { return; }
+    let ((x, y), end) = map.get(argument).unwrap();
+    let width = end.0 - x;
+    let height = end.1 - y;
+    move_window(&hwnd, x, y, &width, &height);
 }
 
 fn get_window_position(hwnd: &HWND) -> ((i32, i32), (i32, i32)) {
