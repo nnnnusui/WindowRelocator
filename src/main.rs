@@ -10,6 +10,7 @@ use winapi::{
     um::winuser::{GetForegroundWindow, GetWindowInfo, GetWindowTextW, MoveWindow, WINDOWINFO},
 };
 use std::collections::HashMap;
+use std::sync::mpsc::Sender;
 
 fn main() {
     let csv_path = Path::new("save.csv");
@@ -25,17 +26,7 @@ fn main() {
 
     let mut map = std::collections::HashMap::new();
     let (sender, receiver) = mpsc::channel();
-    thread::spawn(move || loop {
-        let mut input = String::new();
-        std::io::stdin()
-            .read_line(&mut input)
-            .expect("Failed to read line");
-        let input = input.trim();
-        println!("send input: {}", input);
-        sender
-            .send(input.to_string())
-            .expect("Send Message Failure");
-    });
+    thread::spawn(move || input_loop(&sender));
 
     loop {
         sleep(Duration::from_millis(100));
@@ -64,6 +55,20 @@ fn main() {
             }
             _ => {}
         }
+    }
+}
+
+fn input_loop(sender: &Sender<String>) {
+    loop {
+        let mut input = String::new();
+        std::io::stdin()
+            .read_line(&mut input)
+            .expect("Failed to read line");
+        let input = input.trim();
+        println!("send input: {}", input);
+        sender
+            .send(input.to_string())
+            .expect("Send Message Failure");
     }
 }
 
