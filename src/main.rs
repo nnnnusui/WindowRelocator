@@ -4,8 +4,6 @@ use std::time::Duration;
 use std::{mem, thread};
 
 use std::collections::HashMap;
-use std::fs::File;
-use std::path::Path;
 use std::sync::mpsc::{Receiver, Sender};
 use winapi::{
     shared::{minwindef::TRUE, windef::HWND},
@@ -13,16 +11,6 @@ use winapi::{
 };
 
 fn main() {
-    let csv_path = Path::new("save.csv");
-    if !csv_path.exists() {
-        File::create(&csv_path).expect("Failed to create csv");
-        let mut writer = csv::Writer::from_path(&csv_path).unwrap();
-        writer
-            .write_record(&["Name", "Start_x", "Start_y", "End_x", "End_y"])
-            .expect("Failed to write csv record");
-        writer.flush().expect("Failed to save csv");
-    }
-
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || input_loop(&sender));
     standby_loop(&receiver);
