@@ -3,59 +3,29 @@ use std::thread::sleep;
 use std::time::Duration;
 use std::{mem, thread};
 
+use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
+use std::sync::mpsc::{Receiver, Sender};
 use winapi::{
     shared::{minwindef::TRUE, windef::HWND},
     um::winuser::{GetForegroundWindow, GetWindowInfo, GetWindowTextW, MoveWindow, WINDOWINFO},
 };
-use std::collections::HashMap;
-use std::sync::mpsc::Sender;
 
 fn main() {
     let csv_path = Path::new("save.csv");
     if !csv_path.exists() {
-        File::create(&csv_path);
+        File::create(&csv_path).expect("Failed to create csv");
         let mut writer = csv::Writer::from_path(&csv_path).unwrap();
-        writer.write_record(&["Name", "Start_x", "Start_y", "End_x", "End_y"]);
-        writer.flush();
+        writer
+            .write_record(&["Name", "Start_x", "Start_y", "End_x", "End_y"])
+            .expect("Failed to write csv record");
+        writer.flush().expect("Failed to save csv");
     }
 
-    let default_window: HWND = unsafe { GetForegroundWindow() };
-    let mut prev_selected: HWND = default_window.clone();
-
-    let mut map = std::collections::HashMap::new();
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || input_loop(&sender));
-
-    loop {
-        sleep(Duration::from_millis(100));
-
-        let window = unsafe { GetForegroundWindow() };
-        if prev_selected != window && window != default_window {
-            println!("focus window: {}", get_window_title(&window));
-            prev_selected = window;
-        }
-        match receiver.try_recv() {
-            Ok(message) => {
-                println!("receive message: {}", message);
-
-                println!("focus window: {}", get_window_title(&prev_selected));
-                let (start, end) = get_window_position(&prev_selected);
-                println!("window start: ({}, {})", start.0, start.1);
-                println!("window end: ({}, {})", end.0, end.1);
-
-                let messages: Vec<&str> = message.split_whitespace().collect();
-                let command = messages[0];
-                match command {
-                    "save" => save(&mut map, &messages[1], (start, end)),
-                    "load" => load(&prev_selected, &map, &messages[1]),
-                    _ => {}
-                }
-            }
-            _ => {}
-        }
-    }
+    standby_loop(&receiver);
 }
 
 fn input_loop(sender: &Sender<String>) {
@@ -64,19 +34,62 @@ fn input_loop(sender: &Sender<String>) {
         std::io::stdin()
             .read_line(&mut input)
             .expect("Failed to read line");
-        let input = input.trim();
-        println!("send input: {}", input);
         sender
-            .send(input.to_string())
+            .send(input.trim().to_string())
             .expect("Send Message Failure");
     }
 }
 
-fn save(map: &mut HashMap<String, ((i32, i32), (i32, i32))>, argument: &str, position: ((i32, i32), (i32, i32))) {
+fn standby_loop(receiver: &Receiver<String>) {
+    let mut map = std::collections::HashMap::new();
+    let default_window: HWND = unsafe { GetForegroundWindow() };
+    let mut prev_window: HWND = default_window.clone();
+
+    loop {
+        sleep(Duration::from_millis(100));
+
+        let window = unsafe { GetForegroundWindow() };
+        if window != prev_window && window != default_window {
+            println!("focus window: {}", get_window_title(&window));
+            prev_window = window;
+        }
+        match receiver.try_recv() {
+            Ok(command) => interpret_command(&command, &mut map, &prev_window),
+            _ => {}
+        }
+    }
+}
+
+fn interpret_command(
+    command: &str,
+    map: &mut HashMap<String, ((i32, i32), (i32, i32))>,
+    prev_window: &HWND,
+) {
+    println!("focus window: {}", get_window_title(&prev_window));
+    let (start, end) = get_window_position(&prev_window);
+    println!("window start: ({}, {})", start.0, start.1);
+    println!("window end: ({}, {})", end.0, end.1);
+
+    let args: Vec<&str> = command.split_whitespace().collect();
+    let command = args[0];
+    match command {
+        "save" => save(&args[1], (start, end), map),
+        "load" => load(&prev_window, &args[1], &map),
+        _ => {}
+    }
+}
+
+fn save(
+    argument: &str,
+    position: ((i32, i32), (i32, i32)),
+    map: &mut HashMap<String, ((i32, i32), (i32, i32))>,
+) {
     map.insert(argument.to_string(), position);
 }
-fn load(hwnd: &HWND, map: &HashMap<String, ((i32, i32), (i32, i32))>, argument: &str) {
-    if !map.contains_key(argument) { return; }
+fn load(hwnd: &HWND, argument: &str, map: &HashMap<String, ((i32, i32), (i32, i32))>) {
+    if !map.contains_key(argument) {
+        return;
+    }
     let ((x, y), end) = map.get(argument).unwrap();
     let width = end.0 - x;
     let height = end.1 - y;
