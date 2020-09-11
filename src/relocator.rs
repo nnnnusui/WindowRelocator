@@ -2,6 +2,7 @@ use std::mem;
 use std::thread::sleep;
 use std::time::Duration;
 
+use crate::position::Position;
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender};
 use winapi::{
@@ -41,55 +42,57 @@ pub fn standby_loop(receiver: &Receiver<String>) {
     }
 }
 
-fn interpret_command(
-    command: &str,
-    map: &mut HashMap<String, ((i32, i32), (i32, i32))>,
-    prev_window: &HWND,
-) {
+fn interpret_command(command: &str, map: &mut HashMap<String, Position>, prev_window: &HWND) {
     println!(
         "focus window: {:?}/{}",
         prev_window,
         get_window_title(&prev_window)
     );
-    let (start, end) = get_window_position(&prev_window);
-    println!("window start: ({}, {})", start.0, start.1);
-    println!("window end: ({}, {})", end.0, end.1);
+    let position = get_window_position(&prev_window);
+    println!("window coord: ({}, {})", position.x, position.y);
+    println!("window size: ({}, {})", position.width, position.height);
 
     let args: Vec<&str> = command.split_whitespace().collect();
     let command = args[0];
     match command {
-        "save" => save(&args[1], (start, end), map),
+        "save" => save(&args[1], position, map),
         "load" => load(&prev_window, &args[1], &map),
         _ => {}
     }
 }
 
-fn save(
-    argument: &str,
-    position: ((i32, i32), (i32, i32)),
-    map: &mut HashMap<String, ((i32, i32), (i32, i32))>,
-) {
+fn save(argument: &str, position: Position, map: &mut HashMap<String, Position>) {
     map.insert(argument.to_string(), position);
 }
-fn load(hwnd: &HWND, argument: &str, map: &HashMap<String, ((i32, i32), (i32, i32))>) {
+fn load(hwnd: &HWND, argument: &str, map: &HashMap<String, Position>) {
     if !map.contains_key(argument) {
         return;
     }
-    let ((x, y), end) = map.get(argument).unwrap();
-    let width = end.0 - x;
-    let height = end.1 - y;
-    move_window(&hwnd, x, y, &width, &height);
+    let position = map.get(argument).unwrap();
+    move_window(
+        &hwnd,
+        &position.x,
+        &position.y,
+        &position.width,
+        &position.height,
+    );
 }
 
-fn get_window_position(hwnd: &HWND) -> ((i32, i32), (i32, i32)) {
+fn get_window_position(hwnd: &HWND) -> Position {
     let mut window_info = unsafe { mem::zeroed::<WINDOWINFO>() };
     // window_info.cbSize = mem::size_of::<WINDOWINFO>();
     let data = &mut window_info as *mut _;
     unsafe { GetWindowInfo(*hwnd, data) };
-    (
-        (window_info.rcWindow.left, window_info.rcWindow.top),
-        (window_info.rcWindow.right, window_info.rcWindow.bottom),
-    )
+    let x = window_info.rcWindow.left;
+    let y = window_info.rcWindow.top;
+    let width = window_info.rcWindow.right - x;
+    let height = window_info.rcWindow.bottom - y;
+    Position {
+        x,
+        y,
+        width,
+        height,
+    }
 }
 
 fn move_window(hwnd: &HWND, x: &i32, y: &i32, width: &i32, height: &i32) -> bool {
