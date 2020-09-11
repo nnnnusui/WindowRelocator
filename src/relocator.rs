@@ -69,7 +69,7 @@ fn load(hwnd: &HWND, argument: &str, map: &HashMap<String, Position>) {
         return;
     }
     let position = map.get(argument).unwrap();
-    move_window(
+    set_window_position(
         &hwnd,
         &position.x,
         &position.y,
@@ -95,7 +95,7 @@ fn get_window_position(hwnd: &HWND) -> Position {
     }
 }
 
-fn move_window(hwnd: &HWND, x: &i32, y: &i32, width: &i32, height: &i32) -> bool {
+fn set_window_position(hwnd: &HWND, x: &i32, y: &i32, width: &i32, height: &i32) -> bool {
     unsafe { MoveWindow(*hwnd, *x, *y, *width, *height, TRUE) == TRUE }
 }
 
