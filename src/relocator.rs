@@ -32,8 +32,11 @@ pub fn standby_loop(receiver: &Receiver<String>) {
 
         let window = unsafe { GetForegroundWindow() };
         if window != prev_window && window != default_window {
-            println!("focus window: {}", get_window_title(&window));
-            prev_window = window;
+            let position = get_window_position(&window);
+            if !position.has_imaginary_size() {
+                println!("focus window: {}", get_window_title(&window));
+                prev_window = window;
+            }
         }
         match receiver.try_recv() {
             Ok(command) => interpret_command(&command, &mut map, &prev_window),
