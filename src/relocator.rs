@@ -81,7 +81,7 @@ fn load(hwnd: &HWND, argument: &str, map: &HashMap<String, Position>) {
     );
 }
 
-fn get_window_position(hwnd: &HWND) -> Position {
+pub fn get_window_position(hwnd: &HWND) -> Position {
     let mut window_info = unsafe { mem::zeroed::<WINDOWINFO>() };
     // window_info.cbSize = mem::size_of::<WINDOWINFO>();
     let data = &mut window_info as *mut _;
@@ -102,7 +102,7 @@ fn set_window_position(hwnd: &HWND, x: &i32, y: &i32, width: &i32, height: &i32)
     unsafe { MoveWindow(*hwnd, *x, *y, *width, *height, TRUE) == TRUE }
 }
 
-fn get_window_title(hwnd: &HWND) -> String {
+pub fn get_window_title(hwnd: &HWND) -> String {
     use std::ffi::OsString;
     use std::os::windows::ffi::OsStringExt;
     let mut buf = [0u16; 1024];

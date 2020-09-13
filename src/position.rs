@@ -6,7 +6,7 @@ pub struct Position {
     pub(crate) height: i32,
 }
 impl Position {
-    pub(crate) fn has_imaginary_size(&self) -> bool {
+    pub fn has_imaginary_size(&self) -> bool {
         self.width <= 0 || self.height <= 0
     }
 }
