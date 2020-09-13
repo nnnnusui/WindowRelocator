@@ -3,8 +3,11 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use crate::position::Position;
+use crate::window::Window;
+use std::char::REPLACEMENT_CHARACTER;
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender};
+use winapi::_core::char::decode_utf16;
 use winapi::{
     shared::{minwindef::TRUE, windef::HWND},
     um::winuser::{GetForegroundWindow, GetWindowInfo, GetWindowTextW, MoveWindow, WINDOWINFO},
@@ -24,95 +27,62 @@ pub fn input_loop(sender: &Sender<String>) {
 
 pub fn standby_loop(receiver: &Receiver<String>) {
     let mut map = std::collections::HashMap::new();
-    let default_window: HWND = unsafe { GetForegroundWindow() };
-    let mut prev_window: HWND = default_window.clone();
+    let default_window = get_foreground_window();
+    let mut prev_window = default_window.clone();
 
     loop {
         sleep(Duration::from_millis(100));
 
-        let window = unsafe { GetForegroundWindow() };
-        if window != prev_window && window != default_window {
-            let position = get_window_position(&window);
-            if !position.has_imaginary_size() {
-                println!("focus window: {}", get_window_title(&window));
+        let window = get_foreground_window();
+        if window.hwnd != prev_window.hwnd && window.hwnd != default_window.hwnd {
+            if !window.position.has_imaginary_size() {
+                println!("focus window: {:?}", window);
                 prev_window = window;
             }
         }
         match receiver.try_recv() {
-            Ok(command) => interpret_command(&command, &mut map, &prev_window),
+            Ok(command) => {
+                prev_window = match interpret_command(&command, &mut map, prev_window) {
+                    Ok(window) => window,
+                    Err(window) => window,
+                }
+            }
             _ => {}
         }
     }
 }
 
-fn interpret_command(command: &str, map: &mut HashMap<String, Position>, prev_window: &HWND) {
-    println!(
-        "focus window: {:?}/{}",
-        prev_window,
-        get_window_title(&prev_window)
-    );
-    let position = get_window_position(&prev_window);
-    println!("window coord: ({}, {})", position.x, position.y);
-    println!("window size: ({}, {})", position.width, position.height);
+fn get_foreground_window() -> Window {
+    Window::from(unsafe { GetForegroundWindow() })
+}
 
+fn interpret_command(
+    command: &str,
+    map: &mut HashMap<String, Position>,
+    target_window: Window,
+) -> Result<Window, Window> {
+    println!("target window: {:#?}", target_window);
     let args: Vec<&str> = command.split_whitespace().collect();
     let command = args[0];
     match command {
-        "save" => save(&args[1], position, map),
-        "load" => load(&prev_window, &args[1], &map),
-        _ => {}
+        "save" => save(target_window, &args[1], map),
+        "load" => load(target_window, &args[1], &map),
+        _ => Err(target_window),
     }
 }
 
-fn save(argument: &str, position: Position, map: &mut HashMap<String, Position>) {
-    map.insert(argument.to_string(), position);
+fn save(
+    window: Window,
+    argument: &str,
+    map: &mut HashMap<String, Position>,
+) -> Result<Window, Window> {
+    map.insert(argument.to_string(), window.position.clone());
+    Ok(window)
 }
-fn load(hwnd: &HWND, argument: &str, map: &HashMap<String, Position>) {
+fn load(window: Window, argument: &str, map: &HashMap<String, Position>) -> Result<Window, Window> {
     if !map.contains_key(argument) {
-        return;
+        return Err(window);
     }
     let position = map.get(argument).unwrap();
-    set_window_position(
-        &hwnd,
-        &position.x,
-        &position.y,
-        &position.width,
-        &position.height,
-    );
-}
-
-pub fn get_window_position(hwnd: &HWND) -> Position {
-    let mut window_info = unsafe { mem::zeroed::<WINDOWINFO>() };
-    // window_info.cbSize = mem::size_of::<WINDOWINFO>();
-    let data = &mut window_info as *mut _;
-    unsafe { GetWindowInfo(*hwnd, data) };
-    let x = window_info.rcWindow.left;
-    let y = window_info.rcWindow.top;
-    let width = window_info.rcWindow.right - x;
-    let height = window_info.rcWindow.bottom - y;
-    Position {
-        x,
-        y,
-        width,
-        height,
-    }
-}
-
-fn set_window_position(hwnd: &HWND, x: &i32, y: &i32, width: &i32, height: &i32) -> bool {
-    unsafe { MoveWindow(*hwnd, *x, *y, *width, *height, TRUE) == TRUE }
-}
-
-pub fn get_window_title(hwnd: &HWND) -> String {
-    use std::ffi::OsString;
-    use std::os::windows::ffi::OsStringExt;
-    let mut buf = [0u16; 1024];
-    let success = unsafe { GetWindowTextW(*hwnd, &mut buf[0], 1024) > 0 };
-    if success {
-        OsString::from_wide(&buf[..])
-            .to_str()
-            .map(|it| it.to_string())
-            .unwrap_or(String::new())
-    } else {
-        String::new()
-    }
+    window.positioned_to(position.clone())
 }

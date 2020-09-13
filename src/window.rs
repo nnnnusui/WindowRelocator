@@ -7,11 +7,11 @@ use winapi::{
     um::winuser::{GetForegroundWindow, GetWindowInfo, GetWindowTextW, MoveWindow, WINDOWINFO},
 };
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Window {
     pub hwnd: HWND,
     pub title: String,
-    position: Position,
+    pub position: Position,
 }
 impl Window {
     pub fn from(hwnd: HWND) -> Self {
@@ -21,6 +21,15 @@ impl Window {
             position: Self::get_window_position(&hwnd),
         }
     }
+
+    pub fn positioned_to(self, position: Position) -> Result<Self, Self> {
+        let success = Self::set_window_position(&self.hwnd, &position);
+        if !success {
+            return Err(self);
+        }
+        Ok(Window { position, ..self })
+    }
+
     fn get_window_position(hwnd: &HWND) -> Position {
         let mut window_info = unsafe { mem::zeroed::<WINDOWINFO>() };
         // window_info.cbSize = mem::size_of::<WINDOWINFO>();
@@ -48,6 +57,18 @@ impl Window {
                 .collect()
         } else {
             String::new()
+        }
+    }
+    fn set_window_position(hwnd: &HWND, position: &Position) -> bool {
+        unsafe {
+            MoveWindow(
+                *hwnd,
+                position.x,
+                position.y,
+                position.width,
+                position.height,
+                TRUE,
+            ) == TRUE
         }
     }
 }
