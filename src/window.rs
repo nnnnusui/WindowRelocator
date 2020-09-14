@@ -2,6 +2,7 @@ use crate::position::Position;
 use std::char::{decode_utf16, REPLACEMENT_CHARACTER};
 use std::mem;
 use winapi::shared::windef::HWND;
+use winapi::um::winuser::GetClassNameW;
 use winapi::{
     shared::minwindef::TRUE,
     um::winuser::{GetForegroundWindow, GetWindowInfo, GetWindowTextW, MoveWindow, WINDOWINFO},
@@ -12,6 +13,7 @@ pub struct Window {
     pub hwnd: HWND,
     pub title: String,
     pub position: Position,
+    pub class_name: String,
 }
 impl Window {
     pub fn from(hwnd: HWND) -> Self {
@@ -19,6 +21,7 @@ impl Window {
             hwnd,
             title: Self::get_window_title(&hwnd),
             position: Self::get_window_position(&hwnd),
+            class_name: Self::get_class_name(&hwnd),
         }
     }
 
@@ -47,17 +50,27 @@ impl Window {
         }
     }
     fn get_window_title(hwnd: &HWND) -> String {
-        use std::ffi::OsString;
-        use std::os::windows::ffi::OsStringExt;
         let mut buf = [0u16; 1024];
         let success = unsafe { GetWindowTextW(*hwnd, &mut buf[0], 1024) > 0 };
         if success {
-            decode_utf16(buf.iter().take_while(|&i| *i != 0).cloned())
-                .map(|r| r.unwrap_or(REPLACEMENT_CHARACTER))
-                .collect()
+            Self::decode(&buf)
         } else {
             String::new()
         }
+    }
+    fn get_class_name(hwnd: &HWND) -> String {
+        let mut buf = [0u16; 1024];
+        let success = unsafe { GetClassNameW(*hwnd, &mut buf[0], 1024) > 0 };
+        if success {
+            Self::decode(&buf)
+        } else {
+            String::new()
+        }
+    }
+    fn decode(source: &[u16]) -> String {
+        decode_utf16(source.iter().take_while(|&i| *i != 0).cloned())
+            .map(|r| r.unwrap_or(REPLACEMENT_CHARACTER))
+            .collect()
     }
     fn set_window_position(hwnd: &HWND, position: &Position) -> bool {
         unsafe {
