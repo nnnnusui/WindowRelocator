@@ -1,10 +1,15 @@
 use crate::position::Position;
 use std::char::{decode_utf16, REPLACEMENT_CHARACTER};
 use std::mem;
-use winapi::shared::windef::HWND;
 use winapi::{
-    shared::minwindef::TRUE,
-    um::winuser::{GetForegroundWindow, GetWindowInfo, GetWindowTextW, MoveWindow, WINDOWINFO},
+    shared::{
+        minwindef::{BOOL, LPARAM, TRUE},
+        windef::HWND,
+    },
+    um::winuser::{
+        EnumWindows, GetClassNameW, GetWindowInfo, GetWindowTextW, IsIconic, IsWindowEnabled,
+        IsWindowVisible, MoveWindow, WINDOWINFO,
+    },
 };
 
 #[derive(Clone, Debug)]
@@ -12,6 +17,10 @@ pub struct Window {
     pub hwnd: HWND,
     pub title: String,
     pub position: Position,
+    pub class_name: String,
+    pub visible: bool,
+    pub minimized: bool,
+    pub can_input: bool,
 }
 impl Window {
     pub fn from(hwnd: HWND) -> Self {
@@ -19,6 +28,10 @@ impl Window {
             hwnd,
             title: Self::get_window_title(&hwnd),
             position: Self::get_window_position(&hwnd),
+            class_name: Self::get_class_name(&hwnd),
+            visible: Self::is_window_visible(&hwnd),
+            minimized: Self::is_iconic(&hwnd),
+            can_input: Self::is_window_enabled(&hwnd),
         }
     }
 
@@ -30,6 +43,19 @@ impl Window {
         Ok(Window { position, ..self })
     }
 
+    pub fn enumerate() -> Vec<Window> {
+        Self::enumerate_windows()
+    }
+
+    fn is_iconic(hwnd: &HWND) -> bool {
+        unsafe { IsIconic(*hwnd) == TRUE }
+    }
+    fn is_window_visible(hwnd: &HWND) -> bool {
+        unsafe { IsWindowVisible(*hwnd) == TRUE }
+    }
+    fn is_window_enabled(hwnd: &HWND) -> bool {
+        unsafe { IsWindowEnabled(*hwnd) == TRUE }
+    }
     fn get_window_position(hwnd: &HWND) -> Position {
         let mut window_info = unsafe { mem::zeroed::<WINDOWINFO>() };
         // window_info.cbSize = mem::size_of::<WINDOWINFO>();
@@ -47,17 +73,27 @@ impl Window {
         }
     }
     fn get_window_title(hwnd: &HWND) -> String {
-        use std::ffi::OsString;
-        use std::os::windows::ffi::OsStringExt;
         let mut buf = [0u16; 1024];
         let success = unsafe { GetWindowTextW(*hwnd, &mut buf[0], 1024) > 0 };
         if success {
-            decode_utf16(buf.iter().take_while(|&i| *i != 0).cloned())
-                .map(|r| r.unwrap_or(REPLACEMENT_CHARACTER))
-                .collect()
+            Self::decode(&buf)
         } else {
             String::new()
         }
+    }
+    fn get_class_name(hwnd: &HWND) -> String {
+        let mut buf = [0u16; 1024];
+        let success = unsafe { GetClassNameW(*hwnd, &mut buf[0], 1024) > 0 };
+        if success {
+            Self::decode(&buf)
+        } else {
+            String::new()
+        }
+    }
+    fn decode(source: &[u16]) -> String {
+        decode_utf16(source.iter().take_while(|&i| *i != 0).cloned())
+            .map(|r| r.unwrap_or(REPLACEMENT_CHARACTER))
+            .collect()
     }
     fn set_window_position(hwnd: &HWND, position: &Position) -> bool {
         unsafe {
@@ -70,5 +106,16 @@ impl Window {
                 TRUE,
             ) == TRUE
         }
+    }
+    fn enumerate_windows() -> Vec<Window> {
+        let mut windows = Vec::<Window>::new();
+        let userdata = &mut windows as *mut _;
+        unsafe { EnumWindows(Some(Self::enumerate_windows_callback), userdata as LPARAM) };
+        windows
+    }
+    unsafe extern "system" fn enumerate_windows_callback(hwnd: HWND, userdata: LPARAM) -> BOOL {
+        let windows: &mut Vec<Window> = mem::transmute(userdata);
+        windows.push(Window::from(hwnd));
+        TRUE
     }
 }
