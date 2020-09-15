@@ -4,8 +4,15 @@ use std::time::Duration;
 use crate::position::Position;
 use crate::window::Window;
 use std::collections::HashMap;
+use std::mem;
 use std::sync::mpsc::{Receiver, Sender};
-use winapi::um::winuser::GetForegroundWindow;
+use winapi::{
+    shared::{
+        minwindef::{BOOL, LPARAM, TRUE},
+        windef::HWND,
+    },
+    um::winuser::{EnumWindows, GetForegroundWindow},
+};
 
 pub fn input_loop(sender: &Sender<String>) {
     loop {
@@ -59,16 +66,31 @@ fn interpret_command(
     map: &mut HashMap<String, Position>,
     target_window: Window,
 ) -> Result<Window, Window> {
-    println!("target window: {:#?}", target_window);
     let args: Vec<&str> = command.split_whitespace().collect();
     let command = args[0];
     match command {
-        "save" => save(target_window, &args[1], map),
-        "load" => load(target_window, &args[1], &map),
+        "show" => show(target_window),
+        "show-all" => show_all(target_window),
         _ => Err(target_window),
     }
 }
 
+fn show(window: Window) -> Result<Window, Window> {
+    println!("target window: {:#?}", window);
+    Ok(window)
+}
+fn show_all(window: Window) -> Result<Window, Window> {
+    let windows = enumerate_windows();
+    let windows = windows
+        .iter()
+        .filter(|it| !is_target_of_reject(it))
+        .collect::<Vec<_>>();
+    for window in &windows {
+        println!("{:?}", window)
+    }
+    println!("count: {}", windows.len());
+    Ok(window)
+}
 fn save(
     window: Window,
     argument: &str,
@@ -83,4 +105,17 @@ fn load(window: Window, argument: &str, map: &HashMap<String, Position>) -> Resu
     }
     let position = map.get(argument).unwrap();
     window.positioned_to(position.clone())
+}
+
+fn enumerate_windows() -> Vec<Window> {
+    let mut windows = Vec::<Window>::new();
+    let userdata = &mut windows as *mut _;
+    unsafe { EnumWindows(Some(enumerate_windows_callback), userdata as LPARAM) };
+    windows
+}
+
+unsafe extern "system" fn enumerate_windows_callback(hwnd: HWND, userdata: LPARAM) -> BOOL {
+    let windows: &mut Vec<Window> = mem::transmute(userdata);
+    windows.push(Window::from(hwnd));
+    TRUE
 }
