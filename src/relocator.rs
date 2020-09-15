@@ -5,21 +5,12 @@ use thiserror::Error;
 use crate::position::Position;
 use crate::window::Window;
 use regex::Regex;
-use serde::ser::SerializeStruct;
-use serde::{Serialize, Serializer};
 use std::collections::HashMap;
 use std::fs::File;
-use std::mem;
 use std::path::Path;
 use std::sync::mpsc::{Receiver, Sender};
 use thiserror::private::PathAsDisplay;
-use winapi::{
-    shared::{
-        minwindef::{BOOL, LPARAM, TRUE},
-        windef::HWND,
-    },
-    um::winuser::{EnumWindows, GetForegroundWindow},
-};
+use winapi::{shared::windef::HWND, um::winuser::GetForegroundWindow};
 
 pub fn input_loop(sender: &Sender<String>) {
     loop {
@@ -139,7 +130,7 @@ fn save_to(
             window.position.y,
             window.position.width,
             window.position.height,
-        ));
+        ))?;
     }
     writer.flush()?;
     Ok(window)
@@ -209,19 +200,8 @@ enum Error {
 }
 
 fn get_windows() -> Vec<Window> {
-    enumerate_windows()
+    Window::enumerate()
         .into_iter()
         .filter(|it| !is_target_of_reject(it))
         .collect::<Vec<_>>()
-}
-fn enumerate_windows() -> Vec<Window> {
-    let mut windows = Vec::<Window>::new();
-    let userdata = &mut windows as *mut _;
-    unsafe { EnumWindows(Some(enumerate_windows_callback), userdata as LPARAM) };
-    windows
-}
-unsafe extern "system" fn enumerate_windows_callback(hwnd: HWND, userdata: LPARAM) -> BOOL {
-    let windows: &mut Vec<Window> = mem::transmute(userdata);
-    windows.push(Window::from(hwnd));
-    TRUE
 }

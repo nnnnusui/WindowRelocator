@@ -1,11 +1,15 @@
 use crate::position::Position;
 use std::char::{decode_utf16, REPLACEMENT_CHARACTER};
 use std::mem;
-use winapi::shared::windef::HWND;
-use winapi::um::winuser::{GetClassNameW, IsIconic, IsWindowEnabled, IsWindowVisible};
 use winapi::{
-    shared::minwindef::TRUE,
-    um::winuser::{GetWindowInfo, GetWindowTextW, MoveWindow, WINDOWINFO},
+    shared::{
+        minwindef::{BOOL, LPARAM, TRUE},
+        windef::HWND,
+    },
+    um::winuser::{
+        EnumWindows, GetClassNameW, GetWindowInfo, GetWindowTextW, IsIconic, IsWindowEnabled,
+        IsWindowVisible, MoveWindow, WINDOWINFO,
+    },
 };
 
 #[derive(Clone, Debug)]
@@ -37,6 +41,10 @@ impl Window {
             return Err(self);
         }
         Ok(Window { position, ..self })
+    }
+
+    pub fn enumerate() -> Vec<Window> {
+        Self::enumerate_windows()
     }
 
     fn is_iconic(hwnd: &HWND) -> bool {
@@ -98,5 +106,16 @@ impl Window {
                 TRUE,
             ) == TRUE
         }
+    }
+    fn enumerate_windows() -> Vec<Window> {
+        let mut windows = Vec::<Window>::new();
+        let userdata = &mut windows as *mut _;
+        unsafe { EnumWindows(Some(Self::enumerate_windows_callback), userdata as LPARAM) };
+        windows
+    }
+    unsafe extern "system" fn enumerate_windows_callback(hwnd: HWND, userdata: LPARAM) -> BOOL {
+        let windows: &mut Vec<Window> = mem::transmute(userdata);
+        windows.push(Window::from(hwnd));
+        TRUE
     }
 }
