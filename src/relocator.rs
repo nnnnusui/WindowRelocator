@@ -69,11 +69,11 @@ fn interpret_command(
     match command {
         "show" => show(target_window),
         "show-all" => show_all(target_window),
-        "state" => show_state(target_window, store),
-        "save" => save(target_window, store),
-        "save-all" => save_all(target_window, store),
-        "save-to" => save_to(target_window, store, args[1]),
-        "load" => load(target_window, store, args[1]),
+        // "state" => show_state(target_window, store),
+        "save" => save(Vec::from([&target_window]), args[1]).map(|_| target_window),
+        "save-all" => save(get_windows().iter().collect(), args[1]).map(|_| target_window),
+        // "save-to" => save_to(target_window, store, args[1]),
+        "load" => load(args[1], &get_windows()).map(|_| target_window),
         _ => Ok(target_window),
     }
 }
@@ -99,74 +99,60 @@ fn show_state(window: Window, store: &mut HashMap<HWND, Window>) -> Result<Windo
     println!("<- end store state");
     Ok(window)
 }
-fn save(window: Window, store: &mut HashMap<HWND, Window>) -> Result<Window, Error> {
-    store.insert(window.hwnd, window.clone());
-    Ok(window)
-}
-fn save_all(window: Window, store: &mut HashMap<HWND, Window>) -> Result<Window, Error> {
-    let windows = get_windows();
-    for window in windows {
-        store.insert(window.hwnd, window);
-    }
-    Ok(window)
-}
-fn save_to(
-    window: Window,
-    store: &mut HashMap<HWND, Window>,
-    file_path: &str,
-) -> Result<Window, Error> {
+fn save(windows: Vec<&Window>, file_path: &str) -> Result<(), Error> {
     let file_path = file_path.to_string() + ".csv";
     let file_path = Path::new(&file_path);
     if !file_path.exists() {
         File::create(&file_path)?;
     }
-    let mut writer = csv::Writer::from_path(&file_path)?;
-    writer.write_record(&["title", "class_name", "x", "y", "width", "height"])?;
-    for window in store.values() {
-        writer.serialize((
-            &window.title,
-            &window.class_name,
-            window.position.x,
-            window.position.y,
-            window.position.width,
-            window.position.height,
-        ))?;
+    let mut records = read_csv(file_path)?;
+    for window in windows {
+        records.push(window.to_record());
     }
-    writer.flush()?;
-    Ok(window)
+    write_csv(file_path, records)?;
+    Ok(())
 }
-fn load(
-    window: Window,
-    store: &mut HashMap<HWND, Window>,
-    file_path: &str,
-) -> Result<Window, Error> {
-    let file_path = file_path.to_string() + ".csv";
+fn load(from: &str, to: &Vec<Window>) -> Result<(), Error> {
+    let file_path = from.to_string() + ".csv";
     let file_path = Path::new(&file_path);
     if !file_path.exists() {
-        panic!(format!("{} Not Found", file_path.as_display()))
+        File::create(&file_path)?;
     }
-    let mut reader = csv::Reader::from_path(file_path)?;
-    for result in reader.deserialize() {
-        let record: Record = result?;
+    let records = read_csv(file_path)?;
+    let windows = to;
+    for record in records {
         let title_regex = Regex::new(&record.title)?;
         let class_name_regex = Regex::new(&record.class_name)?;
-        let windows = get_windows();
         windows
             .iter()
             .filter(|window| {
                 title_regex.is_match(&window.title) && class_name_regex.is_match(&window.class_name)
             })
-            .map(
-                |window| match window.clone().positioned_to(record.get_position()) {
-                    Ok(window) => window,
-                    Err(window) => window,
-                },
-            )
             .for_each(|window| {
-                store.insert(window.hwnd, window);
+                window.clone().positioned_to(record.get_position());
             });
     }
-    Ok(window)
+    Ok(())
+}
+fn write_csv(file_path: &Path, records: Vec<Record>) -> Result<(), Error> {
+    let not_exists = !file_path.exists();
+    if not_exists {
+        File::create(&file_path)?;
+    }
+    let mut writer = csv::Writer::from_path(file_path)?;
+    if not_exists {
+        writer.write_record(&["title", "class_name", "x", "y", "width", "height"])?;
+    }
+    for record in records {
+        writer.serialize(record)?;
+    }
+    writer.flush()?;
+    Ok(())
+}
+fn read_csv(file_path: &Path) -> Result<Vec<Record>, Error> {
+    let mut reader = csv::Reader::from_path(file_path)?;
+    let records = reader.deserialize().collect::<Result<_, _>>();
+    Ok(records?)
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -185,6 +171,21 @@ impl Record {
             y: self.y,
             width: self.width,
             height: self.height,
+        }
+    }
+}
+trait ToRecordExt {
+    fn to_record(&self) -> Record;
+}
+impl ToRecordExt for Window {
+    fn to_record(&self) -> Record {
+        Record {
+            title: self.title.clone(),
+            class_name: self.class_name.clone(),
+            x: self.position.x,
+            y: self.position.y,
+            width: self.position.width,
+            height: self.position.height,
         }
     }
 }

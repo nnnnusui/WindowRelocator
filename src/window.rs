@@ -35,12 +35,12 @@ impl Window {
         }
     }
 
-    pub fn positioned_to(self, position: Position) -> Result<Self, Self> {
+    pub fn positioned_to(self, position: Position) -> Self {
         let success = Self::set_window_position(&self.hwnd, &position);
         if !success {
-            return Err(self);
+            return self;
         }
-        Ok(Window { position, ..self })
+        Window { position, ..self }
     }
 
     pub fn enumerate() -> Vec<Window> {
