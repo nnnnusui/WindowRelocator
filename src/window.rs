@@ -27,7 +27,7 @@ impl Window {
             class_name: Self::get_class_name(&hwnd),
             visible: Self::is_window_visible(&hwnd),
             minimized: Self::is_iconic(&hwnd),
-            can_input: Self::is_window_visible(&hwnd),
+            can_input: Self::is_window_enabled(&hwnd),
         }
     }
 
