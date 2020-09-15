@@ -8,6 +8,7 @@ use std::char::REPLACEMENT_CHARACTER;
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender};
 use winapi::_core::char::decode_utf16;
+use winapi::um::winuser::GetDesktopWindow;
 use winapi::{
     shared::{minwindef::TRUE, windef::HWND},
     um::winuser::{GetForegroundWindow, GetWindowInfo, GetWindowTextW, MoveWindow, WINDOWINFO},
@@ -35,7 +36,7 @@ pub fn standby_loop(receiver: &Receiver<String>) {
 
         let window = get_foreground_window();
         if window.hwnd != prev_window.hwnd && window.hwnd != default_window.hwnd {
-            if !window.position.has_imaginary_size() {
+            if !is_target_of_reject(&window) {
                 println!("focus window: {:?}", window);
                 prev_window = window;
             }
@@ -50,6 +51,15 @@ pub fn standby_loop(receiver: &Receiver<String>) {
             _ => {}
         }
     }
+}
+
+pub fn is_target_of_reject(window: &Window) -> bool {
+    let desktop = Window::from(unsafe { GetDesktopWindow() });
+    window.minimized
+        || !window.visible
+        || window.position.has_imaginary_size()
+        || !desktop.position.can_hold(&window.position)
+        || window.title.is_empty()
 }
 
 fn get_foreground_window() -> Window {

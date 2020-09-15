@@ -9,14 +9,23 @@ use winapi::{
     um::winuser::EnumWindows,
 };
 extern crate window_relocator;
+use winapi::um::winuser::GetDesktopWindow;
 use window_relocator::relocator::*;
 use window_relocator::window::Window;
 
 fn main() {
+    let desktop = Window::from(unsafe { GetDesktopWindow() });
+    println!("desktop: {:?}", desktop);
     let windows = enumerate_windows();
-    for window in windows {
+    let windows = windows
+        .iter()
+        .filter(|it| !is_target_of_reject(it))
+        .collect::<Vec<_>>();
+    for window in &windows {
         println!("{:?}", window)
     }
+    println!("count: {}", windows.len());
+
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || input_loop(&sender));
     standby_loop(&receiver);

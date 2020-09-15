@@ -2,7 +2,7 @@ use crate::position::Position;
 use std::char::{decode_utf16, REPLACEMENT_CHARACTER};
 use std::mem;
 use winapi::shared::windef::HWND;
-use winapi::um::winuser::GetClassNameW;
+use winapi::um::winuser::{GetClassNameW, IsIconic, IsWindowEnabled, IsWindowVisible};
 use winapi::{
     shared::minwindef::TRUE,
     um::winuser::{GetForegroundWindow, GetWindowInfo, GetWindowTextW, MoveWindow, WINDOWINFO},
@@ -14,6 +14,9 @@ pub struct Window {
     pub title: String,
     pub position: Position,
     pub class_name: String,
+    pub visible: bool,
+    pub minimized: bool,
+    pub can_input: bool,
 }
 impl Window {
     pub fn from(hwnd: HWND) -> Self {
@@ -22,6 +25,9 @@ impl Window {
             title: Self::get_window_title(&hwnd),
             position: Self::get_window_position(&hwnd),
             class_name: Self::get_class_name(&hwnd),
+            visible: Self::is_window_visible(&hwnd),
+            minimized: Self::is_iconic(&hwnd),
+            can_input: Self::is_window_visible(&hwnd),
         }
     }
 
@@ -33,6 +39,15 @@ impl Window {
         Ok(Window { position, ..self })
     }
 
+    fn is_iconic(hwnd: &HWND) -> bool {
+        unsafe { IsIconic(*hwnd) == TRUE }
+    }
+    fn is_window_visible(hwnd: &HWND) -> bool {
+        unsafe { IsWindowVisible(*hwnd) == TRUE }
+    }
+    fn is_window_enabled(hwnd: &HWND) -> bool {
+        unsafe { IsWindowEnabled(*hwnd) == TRUE }
+    }
     fn get_window_position(hwnd: &HWND) -> Position {
         let mut window_info = unsafe { mem::zeroed::<WINDOWINFO>() };
         // window_info.cbSize = mem::size_of::<WINDOWINFO>();
