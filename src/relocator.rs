@@ -126,17 +126,27 @@ fn save_to(
     let mut writer = csv::Writer::from_path(&file_path)?;
     writer.write_record(&["title", "class_name", "x", "y", "width", "height"])?;
     for window in store.values() {
-        writer.write_record(&[
+        writer.serialize((
             &window.title,
             &window.class_name,
-            &window.position.x.to_string(),
-            &window.position.y.to_string(),
-            &window.position.width.to_string(),
-            &window.position.height.to_string(),
-        ])?;
+            window.position.x,
+            window.position.y,
+            window.position.width,
+            window.position.height,
+        ));
     }
     writer.flush()?;
     Ok(window)
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+struct Record {
+    title: String,
+    class_name: String,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
 }
 
 #[derive(Error, Debug)]
