@@ -9,13 +9,10 @@ use winapi::{
     um::winuser::EnumWindows,
 };
 extern crate window_relocator;
-use winapi::um::winuser::GetDesktopWindow;
 use window_relocator::relocator::*;
 use window_relocator::window::Window;
 
 fn main() {
-    let desktop = Window::from(unsafe { GetDesktopWindow() });
-    println!("desktop: {:?}", desktop);
     let windows = enumerate_windows();
     let windows = windows
         .iter()

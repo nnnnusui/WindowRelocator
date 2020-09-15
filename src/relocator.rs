@@ -1,18 +1,11 @@
-use std::mem;
 use std::thread::sleep;
 use std::time::Duration;
 
 use crate::position::Position;
 use crate::window::Window;
-use std::char::REPLACEMENT_CHARACTER;
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender};
-use winapi::_core::char::decode_utf16;
-use winapi::um::winuser::GetDesktopWindow;
-use winapi::{
-    shared::{minwindef::TRUE, windef::HWND},
-    um::winuser::{GetForegroundWindow, GetWindowInfo, GetWindowTextW, MoveWindow, WINDOWINFO},
-};
+use winapi::um::winuser::GetForegroundWindow;
 
 pub fn input_loop(sender: &Sender<String>) {
     loop {
@@ -54,12 +47,7 @@ pub fn standby_loop(receiver: &Receiver<String>) {
 }
 
 pub fn is_target_of_reject(window: &Window) -> bool {
-    let desktop = Window::from(unsafe { GetDesktopWindow() });
-    window.minimized
-        || !window.visible
-        || window.position.has_imaginary_size()
-        || !desktop.position.can_hold(&window.position)
-        || window.title.is_empty()
+    window.minimized || !window.visible || window.title.is_empty()
 }
 
 fn get_foreground_window() -> Window {

@@ -5,7 +5,7 @@ use winapi::shared::windef::HWND;
 use winapi::um::winuser::{GetClassNameW, IsIconic, IsWindowEnabled, IsWindowVisible};
 use winapi::{
     shared::minwindef::TRUE,
-    um::winuser::{GetForegroundWindow, GetWindowInfo, GetWindowTextW, MoveWindow, WINDOWINFO},
+    um::winuser::{GetWindowInfo, GetWindowTextW, MoveWindow, WINDOWINFO},
 };
 
 #[derive(Clone, Debug)]
