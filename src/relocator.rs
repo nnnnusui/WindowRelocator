@@ -8,7 +8,7 @@ use regex::Regex;
 use std::fs::File;
 use std::path::Path;
 use std::sync::mpsc::{Receiver, Sender};
-use winapi::{shared::windef::HWND, um::winuser::GetForegroundWindow};
+use winapi::um::winuser::GetForegroundWindow;
 
 pub fn input_loop(sender: &Sender<String>) {
     loop {
@@ -35,10 +35,15 @@ pub fn standby_loop(receiver: &Receiver<String>) {
             prev_window = window;
         }
         match receiver.try_recv() {
-            Ok(command) => match interpret_command(&command, &prev_window) {
-                Ok(_) => {}
-                Err(_) => print!("error"),
-            },
+            Ok(command) => {
+                match interpret_command(
+                    &command.split_whitespace().collect::<Vec<&str>>(),
+                    &prev_window,
+                ) {
+                    Ok(_) => {}
+                    Err(_) => print!("error"),
+                }
+            }
             _ => {}
         }
     }
@@ -52,8 +57,7 @@ fn get_foreground_window() -> Window {
     Window::from(unsafe { GetForegroundWindow() })
 }
 
-fn interpret_command(command: &str, target_window: &Window) -> Result<(), Error> {
-    let args: Vec<&str> = command.split_whitespace().collect();
+fn interpret_command(args: &Vec<&str>, target_window: &Window) -> Result<(), Error> {
     let command = args[0];
     match command {
         "show" => show(&Vec::from([target_window])),
