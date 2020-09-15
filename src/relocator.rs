@@ -27,8 +27,8 @@ pub fn input_loop(sender: &Sender<String>) {
 }
 
 pub fn standby_loop(receiver: &Receiver<String>) {
-    let mut map = std::collections::HashMap::new();
     let default_window = get_foreground_window();
+    let mut store = Vec::<Window>::new();
     let mut prev_window = default_window.clone();
 
     loop {
@@ -43,7 +43,7 @@ pub fn standby_loop(receiver: &Receiver<String>) {
         }
         match receiver.try_recv() {
             Ok(command) => {
-                prev_window = match interpret_command(&command, &mut map, prev_window) {
+                prev_window = match interpret_command(&command, prev_window, &mut store) {
                     Ok(window) => window,
                     Err(window) => window,
                 }
@@ -63,14 +63,16 @@ fn get_foreground_window() -> Window {
 
 fn interpret_command(
     command: &str,
-    map: &mut HashMap<String, Position>,
     target_window: Window,
+    store: &mut Vec<Window>,
 ) -> Result<Window, Window> {
     let args: Vec<&str> = command.split_whitespace().collect();
     let command = args[0];
     match command {
         "show" => show(target_window),
         "show-all" => show_all(target_window),
+        "state" => show_state(target_window, store),
+        "save" => save(target_window, store),
         _ => Err(target_window),
     }
 }
@@ -91,12 +93,17 @@ fn show_all(window: Window) -> Result<Window, Window> {
     println!("count: {}", windows.len());
     Ok(window)
 }
-fn save(
-    window: Window,
-    argument: &str,
-    map: &mut HashMap<String, Position>,
-) -> Result<Window, Window> {
-    map.insert(argument.to_string(), window.position.clone());
+fn show_state(window: Window, store: &mut Vec<Window>) -> Result<Window, Window> {
+    let indent = " ".repeat(4);
+    println!("store state ->");
+    for data in store {
+        println!("{}{:?}", indent, data)
+    }
+    println!("<- end store state");
+    Ok(window)
+}
+fn save(window: Window, store: &mut Vec<Window>) -> Result<Window, Window> {
+    store.push(window.clone());
     Ok(window)
 }
 fn load(window: Window, argument: &str, map: &HashMap<String, Position>) -> Result<Window, Window> {
