@@ -28,7 +28,7 @@ pub fn input_loop(sender: &Sender<String>) {
 
 pub fn standby_loop(receiver: &Receiver<String>) {
     let default_window = get_foreground_window();
-    let mut store = Vec::<Window>::new();
+    let mut store = HashMap::<HWND, Window>::new();
     let mut prev_window = default_window.clone();
 
     loop {
@@ -64,7 +64,7 @@ fn get_foreground_window() -> Window {
 fn interpret_command(
     command: &str,
     target_window: Window,
-    store: &mut Vec<Window>,
+    store: &mut HashMap<HWND, Window>,
 ) -> Result<Window, Window> {
     let args: Vec<&str> = command.split_whitespace().collect();
     let command = args[0];
@@ -93,7 +93,7 @@ fn show_all(window: Window) -> Result<Window, Window> {
     println!("count: {}", windows.len());
     Ok(window)
 }
-fn show_state(window: Window, store: &mut Vec<Window>) -> Result<Window, Window> {
+fn show_state(window: Window, store: &mut HashMap<HWND, Window>) -> Result<Window, Window> {
     let indent = " ".repeat(4);
     println!("store state ->");
     for data in store {
@@ -102,16 +102,9 @@ fn show_state(window: Window, store: &mut Vec<Window>) -> Result<Window, Window>
     println!("<- end store state");
     Ok(window)
 }
-fn save(window: Window, store: &mut Vec<Window>) -> Result<Window, Window> {
-    store.push(window.clone());
+fn save(window: Window, store: &mut HashMap<HWND, Window>) -> Result<Window, Window> {
+    store.insert(window.hwnd, window.clone());
     Ok(window)
-}
-fn load(window: Window, argument: &str, map: &HashMap<String, Position>) -> Result<Window, Window> {
-    if !map.contains_key(argument) {
-        return Err(window);
-    }
-    let position = map.get(argument).unwrap();
-    window.positioned_to(position.clone())
 }
 
 fn enumerate_windows() -> Vec<Window> {
