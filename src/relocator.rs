@@ -5,11 +5,9 @@ use thiserror::Error;
 use crate::position::Position;
 use crate::window::Window;
 use regex::Regex;
-use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 use std::sync::mpsc::{Receiver, Sender};
-use thiserror::private::PathAsDisplay;
 use winapi::{shared::windef::HWND, um::winuser::GetForegroundWindow};
 
 pub fn input_loop(sender: &Sender<String>) {
@@ -26,7 +24,6 @@ pub fn input_loop(sender: &Sender<String>) {
 
 pub fn standby_loop(receiver: &Receiver<String>) {
     let default_window = get_foreground_window();
-    let mut store = HashMap::<HWND, Window>::new();
     let mut prev_window = default_window.clone();
 
     loop {
@@ -34,18 +31,14 @@ pub fn standby_loop(receiver: &Receiver<String>) {
 
         let window = get_foreground_window();
         if window.hwnd != prev_window.hwnd && window.hwnd != default_window.hwnd {
-            // if !is_target_of_reject(&window) {
             println!("focus window: {:?}", window);
             prev_window = window;
-            // }
         }
         match receiver.try_recv() {
-            Ok(command) => {
-                prev_window = match interpret_command(&command, prev_window, &mut store) {
-                    Ok(window) => window,
-                    Err(error) => panic!(error),
-                }
-            }
+            Ok(command) => match interpret_command(&command, &prev_window) {
+                Ok(_) => {}
+                Err(_) => print!("error"),
+            },
             _ => {}
         }
     }
@@ -59,47 +52,31 @@ fn get_foreground_window() -> Window {
     Window::from(unsafe { GetForegroundWindow() })
 }
 
-fn interpret_command(
-    command: &str,
-    target_window: Window,
-    store: &mut HashMap<HWND, Window>,
-) -> Result<Window, Error> {
+fn interpret_command(command: &str, target_window: &Window) -> Result<(), Error> {
     let args: Vec<&str> = command.split_whitespace().collect();
     let command = args[0];
     match command {
-        "show" => show(target_window),
-        "show-all" => show_all(target_window),
-        // "state" => show_state(target_window, store),
-        "save" => save(Vec::from([&target_window]), args[1]).map(|_| target_window),
-        "save-all" => save(get_windows().iter().collect(), args[1]).map(|_| target_window),
-        // "save-to" => save_to(target_window, store, args[1]),
-        "load" => load(args[1], &get_windows()).map(|_| target_window),
-        _ => Ok(target_window),
+        "show" => show(&Vec::from([target_window])),
+        "show-all" => show(&get_windows().iter().collect()),
+        "save" => save(&Vec::from([target_window]), args[1]),
+        "save-all" => save(&get_windows().iter().collect(), args[1]),
+        "load" => load(args[1], &get_windows()),
+        _ => Ok(()),
     }
 }
 
-fn show(window: Window) -> Result<Window, Error> {
-    println!("target window: {:#?}", window);
-    Ok(window)
-}
-fn show_all(window: Window) -> Result<Window, Error> {
-    let windows = get_windows();
-    for window in &windows {
+fn show(windows: &Vec<&Window>) -> Result<(), Error> {
+    if windows.len() == 1 {
+        println!("target window: {:#?}", windows[0]);
+        return Ok(());
+    }
+    for window in windows {
         println!("{:?}", window)
     }
     println!("count: {}", windows.len());
-    Ok(window)
+    Ok(())
 }
-fn show_state(window: Window, store: &mut HashMap<HWND, Window>) -> Result<Window, Error> {
-    let indent = " ".repeat(4);
-    println!("store state ->");
-    for data in store {
-        println!("{}{:?}", indent, data)
-    }
-    println!("<- end store state");
-    Ok(window)
-}
-fn save(windows: Vec<&Window>, file_path: &str) -> Result<(), Error> {
+fn save(windows: &Vec<&Window>, file_path: &str) -> Result<(), Error> {
     let file_path = file_path.to_string() + ".csv";
     let file_path = Path::new(&file_path);
     if !file_path.exists() {
@@ -116,7 +93,7 @@ fn load(from: &str, to: &Vec<Window>) -> Result<(), Error> {
     let file_path = from.to_string() + ".csv";
     let file_path = Path::new(&file_path);
     if !file_path.exists() {
-        File::create(&file_path)?;
+        panic!("load file not exists");
     }
     let records = read_csv(file_path)?;
     let windows = to;
