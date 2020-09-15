@@ -1,5 +1,6 @@
 use std::thread::sleep;
 use std::time::Duration;
+use thiserror::Error;
 
 use crate::window::Window;
 use std::collections::HashMap;
@@ -46,7 +47,7 @@ pub fn standby_loop(receiver: &Receiver<String>) {
             Ok(command) => {
                 prev_window = match interpret_command(&command, prev_window, &mut store) {
                     Ok(window) => window,
-                    Err(window) => window,
+                    Err(error) => panic!(error),
                 }
             }
             _ => {}
@@ -66,7 +67,7 @@ fn interpret_command(
     command: &str,
     target_window: Window,
     store: &mut HashMap<HWND, Window>,
-) -> Result<Window, Window> {
+) -> Result<Window, Error> {
     let args: Vec<&str> = command.split_whitespace().collect();
     let command = args[0];
     match command {
@@ -76,15 +77,15 @@ fn interpret_command(
         "save" => save(target_window, store),
         "save-all" => save_all(target_window, store),
         "save-to" => save_to(target_window, store, args[1]),
-        _ => Err(target_window),
+        _ => Ok(target_window),
     }
 }
 
-fn show(window: Window) -> Result<Window, Window> {
+fn show(window: Window) -> Result<Window, Error> {
     println!("target window: {:#?}", window);
     Ok(window)
 }
-fn show_all(window: Window) -> Result<Window, Window> {
+fn show_all(window: Window) -> Result<Window, Error> {
     let windows = get_windows();
     for window in &windows {
         println!("{:?}", window)
@@ -92,7 +93,7 @@ fn show_all(window: Window) -> Result<Window, Window> {
     println!("count: {}", windows.len());
     Ok(window)
 }
-fn show_state(window: Window, store: &mut HashMap<HWND, Window>) -> Result<Window, Window> {
+fn show_state(window: Window, store: &mut HashMap<HWND, Window>) -> Result<Window, Error> {
     let indent = " ".repeat(4);
     println!("store state ->");
     for data in store {
@@ -101,11 +102,11 @@ fn show_state(window: Window, store: &mut HashMap<HWND, Window>) -> Result<Windo
     println!("<- end store state");
     Ok(window)
 }
-fn save(window: Window, store: &mut HashMap<HWND, Window>) -> Result<Window, Window> {
+fn save(window: Window, store: &mut HashMap<HWND, Window>) -> Result<Window, Error> {
     store.insert(window.hwnd, window.clone());
     Ok(window)
 }
-fn save_all(window: Window, store: &mut HashMap<HWND, Window>) -> Result<Window, Window> {
+fn save_all(window: Window, store: &mut HashMap<HWND, Window>) -> Result<Window, Error> {
     let windows = get_windows();
     for window in windows {
         store.insert(window.hwnd, window);
@@ -116,30 +117,34 @@ fn save_to(
     window: Window,
     store: &mut HashMap<HWND, Window>,
     file_path: &str,
-) -> Result<Window, Window> {
+) -> Result<Window, Error> {
     let file_path = file_path.to_string() + ".csv";
     let file_path = Path::new(&file_path);
     if !file_path.exists() {
-        File::create(&file_path).expect("Failed to create csv");
+        File::create(&file_path)?;
     }
-    let mut writer = csv::Writer::from_path(&file_path).expect("Failed to create csv writer");
-    writer
-        .write_record(&["title", "class_name", "x", "y", "width", "height"])
-        .expect("Failed to write csv record");
+    let mut writer = csv::Writer::from_path(&file_path)?;
+    writer.write_record(&["title", "class_name", "x", "y", "width", "height"])?;
     for window in store.values() {
-        writer
-            .write_record(&[
-                &window.title,
-                &window.class_name,
-                &window.position.x.to_string(),
-                &window.position.y.to_string(),
-                &window.position.width.to_string(),
-                &window.position.height.to_string(),
-            ])
-            .expect("Failed to write csv record");
+        writer.write_record(&[
+            &window.title,
+            &window.class_name,
+            &window.position.x.to_string(),
+            &window.position.y.to_string(),
+            &window.position.width.to_string(),
+            &window.position.height.to_string(),
+        ])?;
     }
-    writer.flush().expect("Failed to save csv");
+    writer.flush()?;
     Ok(window)
+}
+
+#[derive(Error, Debug)]
+enum Error {
+    #[error("csv error {0}")]
+    CsvError(#[from] csv::Error),
+    #[error("io error {0}")]
+    IoError(#[from] std::io::Error),
 }
 
 fn get_windows() -> Vec<Window> {
