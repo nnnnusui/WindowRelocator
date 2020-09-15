@@ -11,8 +11,11 @@ use std::sync::mpsc::{Receiver, Sender};
 use winapi::um::winuser::GetForegroundWindow;
 
 pub fn input_loop(sender: &Sender<String>) {
+    let terminal_name = "relocator:";
     loop {
         let mut input = String::new();
+        println!("{}", terminal_name);
+        // std::io::Write::flush(&mut std::io::stdout()).expect("flush failed!");
         std::io::stdin()
             .read_line(&mut input)
             .expect("Failed to read line");
