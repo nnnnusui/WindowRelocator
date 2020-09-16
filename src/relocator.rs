@@ -8,7 +8,6 @@ use regex::Regex;
 use std::fs::File;
 use std::path::Path;
 use std::sync::mpsc::{Receiver, Sender};
-use winapi::um::winuser::GetForegroundWindow;
 
 pub fn input_loop(sender: &Sender<String>) {
     let terminal_name = "relocator:";
@@ -26,13 +25,13 @@ pub fn input_loop(sender: &Sender<String>) {
 }
 
 pub fn standby_loop(receiver: &Receiver<String>) {
-    let default_window = get_foreground_window();
+    let default_window = Window::get_foreground();
     let mut prev_window = default_window.clone();
 
     loop {
         sleep(Duration::from_millis(100));
 
-        let window = get_foreground_window();
+        let window = Window::get_foreground();
         if window.hwnd != prev_window.hwnd && window.hwnd != default_window.hwnd {
             println!("focus window: {:?}", window);
             prev_window = window;
@@ -56,11 +55,7 @@ pub fn is_target_of_reject(window: &Window) -> bool {
     window.minimized || !window.visible || window.title.is_empty()
 }
 
-fn get_foreground_window() -> Window {
-    Window::from(unsafe { GetForegroundWindow() })
-}
-
-fn interpret_command(args: &Vec<&str>, target_window: &Window) -> Result<(), Error> {
+pub fn interpret_command(args: &Vec<&str>, target_window: &Window) -> Result<(), Error> {
     let command = args[0];
     match command {
         "show" => show(&Vec::from([target_window])),
@@ -175,7 +170,7 @@ impl ToRecordExt for Window {
 }
 
 #[derive(Error, Debug)]
-enum Error {
+pub enum Error {
     #[error("csv error {0}")]
     CsvError(#[from] csv::Error),
     #[error("io error {0}")]

@@ -1,6 +1,7 @@
 use crate::position::Position;
 use std::char::{decode_utf16, REPLACEMENT_CHARACTER};
 use std::mem;
+use winapi::um::winuser::GetForegroundWindow;
 use winapi::{
     shared::{
         minwindef::{BOOL, LPARAM, TRUE},
@@ -45,6 +46,9 @@ impl Window {
 
     pub fn enumerate() -> Vec<Window> {
         Self::enumerate_windows()
+    }
+    pub fn get_foreground() -> Window {
+        Window::from(unsafe { GetForegroundWindow() })
     }
 
     fn is_iconic(hwnd: &HWND) -> bool {
