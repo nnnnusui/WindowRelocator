@@ -63,7 +63,9 @@ pub fn interpret_command(args: &Vec<&str>, target_window: &Window) -> Result<(),
         "save" => save(&Vec::from([target_window]), args[1]),
         "save-all" => save(&get_windows().iter().collect(), args[1]),
         "load" => load(args[1], &get_windows()),
-        _ => Ok(()),
+        _ => Err(Error::CommandNotFound {
+            args: args.iter().map(|it| it.to_string()).collect(),
+        }),
     }
 }
 
@@ -177,6 +179,10 @@ pub enum Error {
     IoError(#[from] std::io::Error),
     #[error("regex error {0}")]
     RegexError(#[from] regex::Error),
+    #[error("command error")]
+    CommandNotFound { args: Vec<String> },
+    #[error("")]
+    Message(&'static str),
 }
 
 fn get_windows() -> Vec<Window> {
